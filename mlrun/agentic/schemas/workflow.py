@@ -31,7 +31,7 @@ class Workflow(BaseWithVerMetadata):
     _top_level_fields = ["workflow_type"]
 
     workflow_type: WorkflowType
-    project_id: str
+    project_id: Optional[str] = None
     deployment: Optional[str] = None
     workflow_function: Optional[str] = None
     configuration: Optional[dict] = None
@@ -68,7 +68,7 @@ class WorkflowEvent:
     def to_dict(self):
         return {
             "username": self.username,
-            "session_id": self.session_id,
+            "session_name": self.session_name,
             "query": self.query,
             "kwargs": self.kwargs,
             "results": self.results,

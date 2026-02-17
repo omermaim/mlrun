@@ -12,65 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Factory helpers for creating LLMs, embeddings, and vector stores from dicts.
+
+Each ``get_*`` function accepts a plain dict with a ``class_name`` key
+plus constructor kwargs.  Short aliases (e.g. ``"huggingface"``,
+``"milvus"``) are expanded automatically.
+"""
+
 import importlib
-import os
-import pathlib
-from typing import Union
-
-import yaml
-from pydantic import BaseModel
-
-
-class WorkflowServerConfig(BaseModel):
-    controller_url: str = "http://localhost:8001"
-    controller_username: str = "guest"
-    project_name: str = "default"
-    verbose: bool = True
-    log_level: str = "INFO"
-    deployment_url: str = "http://localhost:8000"
-    workflows_kwargs: dict[str, dict] = {}
-
-    chunk_size: int = 1024
-    chunk_overlap: int = 20
-
-    embeddings: dict = {"class_name": "huggingface", "model_name": "all-MiniLM-L6-v2"}
-    default_llm: dict = {
-        "class_name": "langchain_openai.ChatOpenAI",
-        "temperature": 0,
-        "model_name": "gpt-3.5-turbo",
-    }
-    default_vector_store: dict = {
-        "class_name": "milvus",
-        "collection_name": "default",
-        "connection_args": {"address": "localhost:19530"},
-    }
-
-    def default_collection(self):
-        return self.default_vector_store.get("collection_name", "default")
-
-    def print(self):
-        print(yaml.dump(self.model_dump()))
-
-    @classmethod
-    def from_yaml(cls, path: Union[str, pathlib.Path]) -> "WorkflowServerConfig":
-        with open(path, "r") as f:
-            data = yaml.safe_load(f)
-        return cls.model_validate(data)
-
-    @classmethod
-    def local_config(cls) -> "WorkflowServerConfig":
-        config = cls()
-        config.verbose = True
-        config.default_vector_store = {
-            "class_name": "chroma",
-            "collection_name": "default",
-            "persist_directory": str(
-                (
-                    pathlib.Path(os.environ.get("AGENTIC_LOCAL_CHROMA", ".")) / "chroma"
-                ).absolute()
-            ),
-        }
-        return config
 
 
 embeddings_shortcuts = {
@@ -89,23 +38,34 @@ llm_shortcuts = {
 }
 
 
-def get_embedding_function(config: WorkflowServerConfig, embeddings_args: dict = None):
-    return get_object_from_dict(
-        embeddings_args or config.embeddings, embeddings_shortcuts
-    )
+def get_embedding_function(embeddings_args: dict):
+    """Create an embeddings instance from a dict.
+
+    :param embeddings_args: Dict with ``class_name`` + constructor kwargs.
+    """
+    return get_object_from_dict(embeddings_args, embeddings_shortcuts)
 
 
-def get_llm(config: WorkflowServerConfig, llm_args: dict = None):
-    return get_object_from_dict(llm_args or config.default_llm, llm_shortcuts)
+def get_llm(llm_args: dict):
+    """Create an LLM instance from a dict.
+
+    :param llm_args: Dict with ``class_name`` + constructor kwargs.
+    """
+    return get_object_from_dict(llm_args, llm_shortcuts)
 
 
 def get_vector_db(
-    config: WorkflowServerConfig,
+    vector_store_args: dict,
+    embeddings_args: dict,
     collection_name: str = None,
-    vector_store_args: dict = None,
 ):
-    embeddings = get_embedding_function(config=config)
-    vector_store_args = vector_store_args or config.default_vector_store
+    """Create a vector store instance from dicts.
+
+    :param vector_store_args: Dict with ``class_name`` + connection kwargs.
+    :param embeddings_args:   Dict with ``class_name`` + kwargs for embeddings.
+    :param collection_name:   Override the collection name in vector_store_args.
+    """
+    embeddings = get_embedding_function(embeddings_args)
     vector_store_args = vector_store_args.copy()
     if collection_name:
         vector_store_args["collection_name"] = collection_name

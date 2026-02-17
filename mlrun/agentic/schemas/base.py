@@ -13,9 +13,7 @@
 # limitations under the License.
 
 from datetime import datetime
-from enum import Enum
-from http.client import HTTPException
-from typing import Any, Dict, Optional, Union
+from typing import Dict, Optional, Union
 
 import yaml
 from pydantic import BaseModel
@@ -97,30 +95,3 @@ class BaseWithVerMetadata(BaseWithOwner):
     version: str = ""
 
 
-class APIResponse(BaseModel):
-    success: bool
-    data: Optional[Any] = None
-    error: Optional[str] = None
-
-    def with_raise(self, format=None) -> "APIResponse":
-        if not self.success:
-            format = format or "API call failed: %s"
-            raise ValueError(format % self.error)
-        return self
-
-    def with_raise_http(self, format=None) -> "APIResponse":
-        if not self.success:
-            format = format or "API call failed: %s"
-            raise HTTPException(status_code=400, detail=format % self.error)
-        return self
-
-
-class APIDictResponse(APIResponse):
-    data: Optional[dict] = None
-
-
-class OutputMode(str, Enum):
-    NAMES = "names"
-    SHORT = "short"
-    DICT = "dict"
-    DETAILS = "details"

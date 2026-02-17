@@ -13,10 +13,7 @@
 # limitations under the License.
 
 from mlrun.agentic.schemas.base import (
-    APIDictResponse,
-    APIResponse,
     Base,
-    OutputMode,
     metadata_fields,
 )
 from mlrun.agentic.schemas.data_source import DataSource, DataSourceType
