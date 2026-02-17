@@ -13,28 +13,11 @@
 # limitations under the License.
 
 from langchain_core.prompts.prompt import PromptTemplate
+from langchain_openai import ChatOpenAI
 
 from mlrun.agentic.chains.base import ChainRunner
-from mlrun.agentic.config import get_llm
 from mlrun.agentic.schemas import WorkflowEvent
 from mlrun.agentic.utils import logger
-
-_refine_prompt_template = """
-You are an assistant refining a user query for retrieval.
-You have full access to the provided chat history in this conversation.
-Use it when necessary to clarify ambiguous references in the current query.
-
-Rules:
-- The current user query always takes priority over chat history.
-- Use chat history ONLY to clarify ambiguous references.
-- If the user query is a greeting or small talk, leave it as conversational intent.
-
-Input:
-Chat History: {chat_history}
-Current User Query: {question}
-
-output:
-"""
 
 CONVERSATION_CONTEXT_REFINER_PROMPT = """
 You are a conversation context refiner.
@@ -63,11 +46,21 @@ Return ONLY the refined input text. No explanations.
 
 
 class RefineQuery(ChainRunner):
-    def __init__(self, llm=None, prompt_template=None, **kwargs):
+    def __init__(self, model_name="gpt-4", temperature=0, llm=None, prompt_template=None, **kwargs):
         super().__init__(**kwargs)
-        self.llm = llm
+        self._model_name = model_name
+        self._temperature = temperature
+        self._llm = llm
         self.prompt_template = prompt_template
         self._chain = None
+
+    @property
+    def llm(self):
+        if not self._llm:
+            self._llm = ChatOpenAI(
+                model=self._model_name, temperature=self._temperature
+            )
+        return self._llm
 
     def post_init(
         self,
@@ -77,23 +70,25 @@ class RefineQuery(ChainRunner):
         creation_strategy=None,
         **kwargs,
     ):
-        self.llm = self.llm or get_llm(self.context._config)
         refine_prompt = PromptTemplate.from_template(
-            self.prompt_template or _refine_prompt_template
+            self.prompt_template or CONVERSATION_CONTEXT_REFINER_PROMPT
         )
         self._chain = refine_prompt | self.llm
 
     def _run(self, event: WorkflowEvent):
         chat_history = str(event.conversation)
-        logger.debug(f"Question: {event.query}\nChat history: {chat_history}")
+        logger.debug("Refine query", question=event.query, chat_history=chat_history)
         resp = self._chain.invoke(
             {"question": event.query, "chat_history": chat_history}
         )
-        logger.debug(f"Refined question: {resp}")
+        logger.debug("Refined question", refined=resp)
         return {"answer": resp}
 
 
-def get_refine_chain(config, verbose=False, prompt_template=None):
-    llm = get_llm(config)
-    verbose = verbose or config.verbose
-    return RefineQuery(llm=llm, verbose=verbose, prompt_template=prompt_template)
+def get_refine_chain(model_name="gpt-4", temperature=0, verbose=False, prompt_template=None):
+    return RefineQuery(
+        model_name=model_name,
+        temperature=temperature,
+        verbose=verbose,
+        prompt_template=prompt_template,
+    )

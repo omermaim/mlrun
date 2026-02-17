@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from pathlib import Path
 
 import yaml
@@ -173,12 +172,3 @@ class DeclarativeRunner(ChainRunner):
         first_name = next(iter(agents))
         primary = agents.pop(first_name)
         return primary, agents
-
-    @staticmethod
-    def _is_likely_path(item: str) -> bool:
-        """Heuristic to check if a string looks like a file/directory path.
-
-        :param item: String to check.
-        :return: True if it looks like a path.
-        """
-        return os.sep in item or item.endswith((".yaml", ".yml"))

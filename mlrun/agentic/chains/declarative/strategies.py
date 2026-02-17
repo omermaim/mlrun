@@ -22,6 +22,14 @@ import mlrun.utils
 
 logger = mlrun.utils.logger
 
+STRATEGY_BUILDERS = {
+    "sequential": "sequential",
+    "round-robin": "round_robin",
+    "roundRobin": "round_robin",
+    "selector": "selector",
+    "graph": "graph",
+}
+
 
 class TeamState(dict):
     """State shared across a team's LangGraph execution.
@@ -334,6 +342,68 @@ def build_graph_strategy_graph(
             graph.add_edge(name, outgoing[0])
 
     return graph.compile()
+
+
+def compile_strategy_graph(
+    strategy_type: str,
+    member_names: list[str],
+    agents: dict,
+    max_turns: int = 10,
+    selector_spec: dict | None = None,
+    graph_spec: dict | None = None,
+):
+    """Compile a LangGraph workflow from a strategy type and agent set.
+
+    Centralizes the strategy-to-graph dispatch logic used by both
+    ``DeclarativeTeam`` and ``DeclarativeTeamRouter``.
+
+    :param strategy_type: Raw strategy string from the ARK YAML spec.
+    :param member_names:  Ordered list of agent names.
+    :param agents:        Dict mapping name -> DeclarativeAgent.
+    :param max_turns:     Maximum turns before termination.
+    :param selector_spec: Selector config dict (for selector/hybrid strategies).
+    :param graph_spec:    Graph config dict with 'edges' (for graph/hybrid strategies).
+    :return: Compiled StateGraph.
+    """
+    selector_spec = selector_spec or {}
+    graph_spec = graph_spec or {}
+
+    normalized = STRATEGY_BUILDERS.get(strategy_type, strategy_type)
+
+    if normalized == "sequential":
+        return build_sequential_graph(member_names, agents)
+
+    elif normalized == "round_robin":
+        return build_round_robin_graph(member_names, agents, max_turns=max_turns)
+
+    elif normalized == "selector":
+        if graph_spec.get("edges"):
+            return build_graph_strategy_graph(
+                member_names,
+                agents,
+                graph_spec=graph_spec,
+                selector_spec=selector_spec,
+                max_turns=max_turns,
+            )
+        else:
+            return build_selector_graph(
+                member_names,
+                agents,
+                selector_spec=selector_spec,
+                max_turns=max_turns,
+            )
+
+    elif normalized == "graph":
+        return build_graph_strategy_graph(
+            member_names,
+            agents,
+            graph_spec=graph_spec,
+            selector_spec=selector_spec or None,
+            max_turns=max_turns,
+        )
+
+    else:
+        raise ValueError(f"Unknown team strategy: {strategy_type}")
 
 
 def _add_hybrid_selector_edges(

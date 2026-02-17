@@ -16,7 +16,10 @@ import asyncio
 
 import storey
 
+import mlrun.utils
 from mlrun.agentic.schemas import WorkflowEvent
+
+logger = mlrun.utils.logger
 
 
 class ChainRunner(storey.Flow):
@@ -44,7 +47,7 @@ class ChainRunner(storey.Flow):
         if event is storey.dtypes._termination_obj:
             return await self._do_downstream(storey.dtypes._termination_obj)
         else:
-            print("step name: ", self.name)
+            logger.debug("Running chain step: %s", self.name)
             element = self._get_event_or_body(event)
             if self._is_async:
                 resp = await self._run(element)

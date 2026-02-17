@@ -32,14 +32,14 @@ try:
         DocumentRetriever,
         MultiRetriever,
         fix_milvus_filter_arg,
-        get_retriever_from_config,
+        get_retriever_from_dicts,
     )
 except ImportError:
     DocumentCallbackHandler = None
     DocumentRetriever = None
     MultiRetriever = None
     fix_milvus_filter_arg = None
-    get_retriever_from_config = None
+    get_retriever_from_dicts = None
 try:
     from mlrun.agentic.chains.a2a_client import A2AClient
 except ImportError:

@@ -13,24 +13,11 @@
 # limitations under the License.
 
 import mlrun.utils
-from mlrun.agentic.chains.declarative.strategies import (
-    build_graph_strategy_graph,
-    build_round_robin_graph,
-    build_selector_graph,
-    build_sequential_graph,
-)
+from mlrun.agentic.chains.declarative.strategies import compile_strategy_graph
 from mlrun.agentic.schemas import WorkflowEvent
 from mlrun.serving.routers import BaseModelRouter
 
 logger = mlrun.utils.logger
-
-_STRATEGY_BUILDERS = {
-    "sequential": "sequential",
-    "round-robin": "round_robin",
-    "roundRobin": "round_robin",
-    "selector": "selector",
-    "graph": "graph",
-}
 
 
 class DeclarativeTeamRouter(BaseModelRouter):
@@ -74,45 +61,14 @@ class DeclarativeTeamRouter(BaseModelRouter):
             ref.get("name") if isinstance(ref, dict) else ref for ref in member_refs
         ]
 
-        # Normalize strategy name and build the appropriate graph
-        normalized = _STRATEGY_BUILDERS.get(strategy_type, strategy_type)
-
-        if normalized == "sequential":
-            self.compiled_graph = build_sequential_graph(member_names, agents)
-
-        elif normalized == "round_robin":
-            self.compiled_graph = build_round_robin_graph(
-                member_names, agents, max_turns=max_turns
-            )
-
-        elif normalized == "selector":
-            if graph_spec.get("edges"):
-                self.compiled_graph = build_graph_strategy_graph(
-                    member_names,
-                    agents,
-                    graph_spec=graph_spec,
-                    selector_spec=selector_spec,
-                    max_turns=max_turns,
-                )
-            else:
-                self.compiled_graph = build_selector_graph(
-                    member_names,
-                    agents,
-                    selector_spec=selector_spec,
-                    max_turns=max_turns,
-                )
-
-        elif normalized == "graph":
-            self.compiled_graph = build_graph_strategy_graph(
-                member_names,
-                agents,
-                graph_spec=graph_spec,
-                selector_spec=selector_spec or None,
-                max_turns=max_turns,
-            )
-
-        else:
-            raise ValueError(f"Unknown team strategy: {strategy_type}")
+        self.compiled_graph = compile_strategy_graph(
+            strategy_type=strategy_type,
+            member_names=member_names,
+            agents=agents,
+            max_turns=max_turns,
+            selector_spec=selector_spec,
+            graph_spec=graph_spec,
+        )
 
         logger.info(
             "DeclarativeTeamRouter initialized",

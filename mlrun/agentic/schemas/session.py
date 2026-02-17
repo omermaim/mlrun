@@ -56,9 +56,6 @@ class Conversation(BaseModel):
     def to_list(self):
         return self.model_dump(mode="json")["messages"]
 
-    def to_dict(self):
-        return self.model_dump(mode="json")["messages"]
-
     @classmethod
     def from_list(cls, data: list):
         return cls.model_validate({"messages": data or []})

@@ -38,15 +38,19 @@ Respond with ONLY one word: SUPPORTED or UNSUPPORTED
 
 
 class HallucinationGuardrail(ChainRunner):
-    def __init__(self, **kwargs):
+    def __init__(self, model_name="gpt-4o-mini", temperature=0, **kwargs):
         super().__init__(**kwargs)
+        self._model_name = model_name
+        self._temperature = temperature
         self._llm = None
         self._chain = None
 
     @property
     def llm(self):
         if not self._llm:
-            self._llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+            self._llm = ChatOpenAI(
+                model=self._model_name, temperature=self._temperature
+            )
         return self._llm
 
     def post_init(

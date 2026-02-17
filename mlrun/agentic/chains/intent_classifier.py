@@ -37,15 +37,19 @@ Content:
 
 
 class IntentClassifier(ChainRunner):
-    def __init__(self, **kwargs):
+    def __init__(self, model_name="gpt-4", temperature=0.5, **kwargs):
         super().__init__(**kwargs)
+        self._model_name = model_name
+        self._temperature = temperature
         self._llm = None
         self._chain = None
 
     @property
     def llm(self):
         if not self._llm:
-            self._llm = ChatOpenAI(model="gpt-4", temperature=0.5)
+            self._llm = ChatOpenAI(
+                model=self._model_name, temperature=self._temperature
+            )
         return self._llm
 
     def post_init(

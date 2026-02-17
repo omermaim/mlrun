@@ -18,16 +18,22 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langchain_community.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
 from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
+from langchain_openai import ChatOpenAI
 
 from mlrun.agentic.chains.base import ChainRunner
-from mlrun.agentic.config import get_llm, get_vector_db
+from mlrun.agentic.config import (
+    get_embedding_function,
+    get_object_from_dict,
+    get_vector_db,
+    vector_db_shortcuts,
+)
 from mlrun.agentic.schemas import WorkflowEvent
 from mlrun.agentic.utils import logger
 
 
 class DocumentCallbackHandler(BaseCallbackHandler):
     def on_retriever_end(self, documents: List[Document], **kwargs):
-        logger.debug(f"Retrieved documents: {documents}")
+        logger.debug("Retrieved documents", documents=documents)
         for i, doc in enumerate(documents):
             doc.metadata["index"] = str(i)
 
@@ -60,12 +66,28 @@ class DocumentRetriever:
         self.chain_type = chain_type
 
     @classmethod
-    def from_config(
-        cls, config, collection_name: Optional[str] = None, **search_kwargs
+    def from_dicts(
+        cls,
+        llm_args: dict,
+        vector_store_args: dict,
+        embeddings_args: dict,
+        collection_name: Optional[str] = None,
+        verbose: bool = False,
+        **search_kwargs,
     ):
-        vector_db = get_vector_db(config, collection_name=collection_name)
-        llm = get_llm(config)
-        return cls(llm, vector_db, verbose=config.verbose, **search_kwargs)
+        """Create a DocumentRetriever from plain config dicts.
+
+        :param llm_args:          Dict with ``class_name`` + LLM kwargs.
+        :param vector_store_args: Dict with ``class_name`` + vector store kwargs.
+        :param embeddings_args:   Dict with ``class_name`` + embeddings kwargs.
+        :param collection_name:   Override collection name.
+        :param verbose:           Enable verbose logging.
+        """
+        from mlrun.agentic.config import get_llm
+
+        vector_db = get_vector_db(vector_store_args, embeddings_args, collection_name=collection_name)
+        llm = get_llm(llm_args)
+        return cls(llm, vector_db, verbose=verbose, **search_kwargs)
 
     def _get_answer(self, query: str) -> tuple[str, List[Document]]:
         result = self.chain({"question": query}, callbacks=[self.cb])
@@ -77,23 +99,63 @@ class DocumentRetriever:
         ]
         if self.verbose:
             docs_string = "\n".join(str(doc.metadata) for doc in source_docs)
-            logger.info(f"Source documents:\n{docs_string}")
+            logger.info("Source documents", docs=docs_string)
         return result["answer"], source_docs
 
     def run(self, event: WorkflowEvent) -> Dict[str, any]:
-        logger.debug(f"Retriever Question: {event.query}")
+        logger.debug("Retriever question", query=event.query)
         query = event.query.content if hasattr(event.query, "content") else event.query
         answer, sources = self._get_answer(query)
-        logger.debug(f"Answer: {answer}\nSources: {sources}")
+        logger.debug("Retriever result", answer=answer, sources=sources)
         return {"answer": answer, "sources": sources}
 
 
 class MultiRetriever(ChainRunner):
-    def __init__(self, llm=None, default_collection: Optional[str] = None, **kwargs):
+    """RAG retrieval chain that creates DocumentRetrievers per collection.
+
+    :param model_name:        LLM model name (default gpt-4).
+    :param temperature:       LLM temperature (default 0).
+    :param llm:               Pre-built LLM (overrides model_name/temperature).
+    :param default_collection: Default vector store collection name.
+    :param vector_store_args:  Dict with ``class_name`` + connection args for the
+                               vector store (e.g. ``{"class_name": "milvus", ...}``).
+    :param embeddings_args:    Dict with ``class_name`` + args for embeddings
+                               (e.g. ``{"class_name": "huggingface", ...}``).
+    """
+
+    def __init__(
+        self,
+        model_name="gpt-4",
+        temperature=0,
+        llm=None,
+        default_collection="default",
+        vector_store_args=None,
+        embeddings_args=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
-        self.llm = llm
+        self._model_name = model_name
+        self._temperature = temperature
+        self._llm = llm
         self.default_collection = default_collection
+        self._vector_store_args = vector_store_args or {
+            "class_name": "milvus",
+            "collection_name": "default",
+            "connection_args": {"address": "localhost:19530"},
+        }
+        self._embeddings_args = embeddings_args or {
+            "class_name": "huggingface",
+            "model_name": "all-MiniLM-L6-v2",
+        }
         self._retrievers: Dict[str, DocumentRetriever] = {}
+
+    @property
+    def llm(self):
+        if not self._llm:
+            self._llm = ChatOpenAI(
+                model=self._model_name, temperature=self._temperature
+            )
+        return self._llm
 
     def post_init(
         self,
@@ -103,19 +165,23 @@ class MultiRetriever(ChainRunner):
         creation_strategy=None,
         **kwargs,
     ):
-        self.llm = self.llm or get_llm(self.context._config)
-        if not self.default_collection:
-            self.default_collection = self.context._config.default_collection()
+        pass
+
+    def _get_vector_db(self, collection_name):
+        embeddings = get_embedding_function(self._embeddings_args)
+        vs_args = self._vector_store_args.copy()
+        if collection_name:
+            vs_args["collection_name"] = collection_name
+        vs_args["embedding_function"] = embeddings
+        return get_object_from_dict(vs_args, vector_db_shortcuts)
 
     def _get_retriever(
         self, collection_name: Optional[str] = None
     ) -> DocumentRetriever:
         collection_name = collection_name or self.default_collection
-        logger.debug(f"Selected collection: {collection_name}")
+        logger.debug("Selected collection", collection_name=collection_name)
         if collection_name not in self._retrievers:
-            vector_db = get_vector_db(
-                self.context._config, collection_name=collection_name
-            )
+            vector_db = self._get_vector_db(collection_name)
             retriever = DocumentRetriever(self.llm, vector_db, verbose=self.verbose)
             self._retrievers[collection_name] = retriever
         return self._retrievers[collection_name]
@@ -136,13 +202,20 @@ def fix_milvus_filter_arg(vector_db, search_kwargs: Dict[str, any]):
         search_kwargs["expr"] = filter_str
 
 
-def get_retriever_from_config(
-    config,
+def get_retriever_from_dicts(
+    llm_args: dict,
+    vector_store_args: dict,
+    embeddings_args: dict,
     verbose: bool = False,
     collection_name: Optional[str] = None,
     **search_kwargs,
 ) -> DocumentRetriever:
-    vector_db = get_vector_db(config, collection_name=collection_name)
-    llm = get_llm(config)
-    verbose = verbose or config.verbose
-    return DocumentRetriever(llm, vector_db, verbose=verbose, **search_kwargs)
+    """Create a DocumentRetriever from plain config dicts."""
+    return DocumentRetriever.from_dicts(
+        llm_args=llm_args,
+        vector_store_args=vector_store_args,
+        embeddings_args=embeddings_args,
+        collection_name=collection_name,
+        verbose=verbose,
+        **search_kwargs,
+    )
