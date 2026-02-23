@@ -58,8 +58,8 @@ class ChainRunner(storey.Flow):
                     element.results[key] = val
                 if "answer" in resp:
                     element.query = resp["answer"]
-                mapped_event = self._user_fn_output_to_event(event, element)
-                await self._do_downstream(mapped_event)
+            mapped_event = self._user_fn_output_to_event(event, element)
+            await self._do_downstream(mapped_event)
 
 
 class SessionLoader(storey.Flow):
