@@ -66,6 +66,13 @@ class WorkflowEvent:
         self.db_session = db_session
 
     def to_dict(self):
+        session_data = None
+        if self.session:
+            if hasattr(self.session, "to_dict"):
+                session_data = self.session.to_dict()
+            else:
+                # agentstores Session handle — serialize as session_id only
+                session_data = {"session_id": getattr(self.session, "session_id", None)}
         return {
             "username": self.username,
             "session_name": self.session_name,
@@ -75,7 +82,7 @@ class WorkflowEvent:
             "state": self.state,
             "conversation": self.conversation.to_list(),
             "workflow_id": self.workflow_id,
-            "session": self.session.to_dict() if self.session else None,
+            "session": session_data,
         }
 
     def __getitem__(self, item):

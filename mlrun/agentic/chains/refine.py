@@ -44,9 +44,46 @@ OUTPUT:
 Return ONLY the refined input text. No explanations.
 """
 
+MEMORY_AWARE_REFINER_PROMPT = """
+You are a conversation context refiner.
+
+Your job is to prepare the best possible input for downstream reasoning
+while preserving the user's original intent.
+
+CRITICAL RULES:
+1. DO NOT summarize unless explicitly instructed
+2. DO NOT invent goals, tasks, or instructions
+3. DO NOT change the meaning or intent of the user's input
+4. Output only the refined input — no explanations
+
+For regular chat messages: Use chat history and known facts to clarify
+ambiguous references.
+For meeting transcripts: Return the ENTIRE transcript exactly as provided.
+
+INPUTS:
+Chat History:
+{chat_history}
+
+Known Facts About This User:
+{memory_context}
+
+Current Input:
+{question}
+
+OUTPUT:
+Return ONLY the refined input text. No explanations.
+"""
+
 
 class RefineQuery(ChainRunner):
-    def __init__(self, model_name="gpt-4", temperature=0, llm=None, prompt_template=None, **kwargs):
+    def __init__(
+        self,
+        model_name="gpt-4",
+        temperature=0,
+        llm=None,
+        prompt_template=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._model_name = model_name
         self._temperature = temperature
@@ -77,15 +114,25 @@ class RefineQuery(ChainRunner):
 
     def _run(self, event: WorkflowEvent):
         chat_history = str(event.conversation)
+        memory_facts = event.state.get("memory_context", [])
+        memory_text = ""
+        if memory_facts:
+            memory_text = "\n".join(f"- {f['key']}: {f['value']}" for f in memory_facts)
         logger.debug("Refine query", question=event.query, chat_history=chat_history)
         resp = self._chain.invoke(
-            {"question": event.query, "chat_history": chat_history}
+            {
+                "question": event.query,
+                "chat_history": chat_history,
+                "memory_context": memory_text,
+            }
         )
         logger.debug("Refined question", refined=resp)
         return {"answer": resp}
 
 
-def get_refine_chain(model_name="gpt-4", temperature=0, verbose=False, prompt_template=None):
+def get_refine_chain(
+    model_name="gpt-4", temperature=0, verbose=False, prompt_template=None
+):
     return RefineQuery(
         model_name=model_name,
         temperature=temperature,

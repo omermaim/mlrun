@@ -58,5 +58,10 @@ class Communicator(ChainRunner):
         self._chain = prompt | self.llm
 
     def _run(self, event: WorkflowEvent):
-        response = self._chain.invoke({"query": event.query})
+        memory_facts = event.state.get("memory_context", [])
+        query = event.query
+        if memory_facts:
+            facts_text = "\n".join(f"- {f['key']}: {f['value']}" for f in memory_facts)
+            query = f"Known facts about this user:\n{facts_text}\n\nUser message:\n{event.query}"
+        response = self._chain.invoke({"query": query})
         return {"answer": response.content}

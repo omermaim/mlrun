@@ -14,4 +14,8 @@
 
 from mlrun.agentic.config import get_llm
 from mlrun.agentic.schemas import Conversation, WorkflowEvent
-from mlrun.agentic.sessions import SessionStore
+
+try:
+    from mlrun.agentic.sessions import SessionStore
+except ImportError:
+    SessionStore = None

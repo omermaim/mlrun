@@ -60,3 +60,10 @@ except ImportError:
     DeclarativeAgent = None
     DeclarativeRunner = None
     DeclarativeTeam = None
+
+try:
+    from mlrun.agentic.chains.memory_loader import MemoryLoader
+    from mlrun.agentic.chains.memory_saver import MemorySaver
+except ImportError:
+    MemoryLoader = None
+    MemorySaver = None
