@@ -62,21 +62,33 @@ class ChainRunner(storey.Flow):
             await self._do_downstream(mapped_event)
 
 
-class SessionLoader(storey.Flow):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+class SessionLoader(ChainRunner):
+    """Loads session state at the start of the chain graph.
+
+    Handles ``dict`` → ``WorkflowEvent`` conversion so downstream steps always
+    receive a proper ``WorkflowEvent``.  Overrides ``_do`` for the async storey
+    engine and ``__call__`` for sync/mock usage.
+    """
 
     async def _do(self, event):
         if event is storey.dtypes._termination_obj:
             return await self._do_downstream(storey.dtypes._termination_obj)
-        else:
-            element = self._get_event_or_body(event)
-            if isinstance(element, dict):
-                element = WorkflowEvent(**element)
+        element = self._get_event_or_body(event)
+        if isinstance(element, dict):
+            element = WorkflowEvent(**element)
+        self.context.session_store.read_state(element)
+        mapped_event = self._user_fn_output_to_event(event, element)
+        await self._do_downstream(mapped_event)
 
-            self.context.session_store.read_state(element)
-            mapped_event = self._user_fn_output_to_event(event, element)
-            await self._do_downstream(mapped_event)
+    def __call__(self, event):
+        if isinstance(event, dict):
+            event = WorkflowEvent(**event)
+        self.context.session_store.read_state(event)
+        return event
+
+    def _run(self, event: WorkflowEvent):
+        self.context.session_store.read_state(event)
+        return {}
 
 
 class HistorySaver(ChainRunner):
@@ -84,7 +96,7 @@ class HistorySaver(ChainRunner):
         self,
         answer_key: str = None,
         question_key: str = None,
-        save_sources: str = True,
+        save_sources: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)

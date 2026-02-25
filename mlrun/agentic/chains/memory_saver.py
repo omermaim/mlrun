@@ -46,11 +46,16 @@ class MemorySaver(ChainRunner):
         self._model_name = model_name
         self._llm = None
 
-    @property
-    def llm(self):
-        if not self._llm:
+    def post_init(
+        self,
+        mode="sync",
+        context=None,
+        namespace=None,
+        creation_strategy=None,
+        **kwargs,
+    ):
+        if self.extract and not self._llm:
             self._llm = ChatOpenAI(model=self._model_name, temperature=0)
-        return self._llm
 
     def _run(self, event: WorkflowEvent):
         memory_store = getattr(self.context, "memory_store", None)
@@ -101,7 +106,7 @@ class MemorySaver(ChainRunner):
             f"Assistant replied: {event.results.get('answer', '')}\n\n"
             "If no facts can be extracted, return []."
         )
-        response = self.llm.invoke(prompt)
+        response = self._llm.invoke(prompt)
         try:
             raw = json.loads(response.content)
             return [Fact(**f) for f in raw]

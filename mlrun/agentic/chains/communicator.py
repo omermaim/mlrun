@@ -38,14 +38,6 @@ class Communicator(ChainRunner):
         self._llm = None
         self._chain = None
 
-    @property
-    def llm(self):
-        if not self._llm:
-            self._llm = ChatOpenAI(
-                model=self._model_name, temperature=self._temperature
-            )
-        return self._llm
-
     def post_init(
         self,
         mode="sync",
@@ -54,11 +46,15 @@ class Communicator(ChainRunner):
         creation_strategy=None,
         **kwargs,
     ):
+        if not self._llm:
+            self._llm = ChatOpenAI(
+                model=self._model_name, temperature=self._temperature
+            )
         prompt = PromptTemplate.from_template(COMMUNICATOR_PROMPT)
-        self._chain = prompt | self.llm
+        self._chain = prompt | self._llm
 
     def _run(self, event: WorkflowEvent):
-        memory_facts = event.state.get("memory_context", [])
+        memory_facts = event.memory_context
         query = event.query
         if memory_facts:
             facts_text = "\n".join(f"- {f['key']}: {f['value']}" for f in memory_facts)

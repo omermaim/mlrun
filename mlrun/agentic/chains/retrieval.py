@@ -149,14 +149,6 @@ class MultiRetriever(ChainRunner):
         }
         self._retrievers: Dict[str, DocumentRetriever] = {}
 
-    @property
-    def llm(self):
-        if not self._llm:
-            self._llm = ChatOpenAI(
-                model=self._model_name, temperature=self._temperature
-            )
-        return self._llm
-
     def post_init(
         self,
         mode="sync",
@@ -165,7 +157,10 @@ class MultiRetriever(ChainRunner):
         creation_strategy=None,
         **kwargs,
     ):
-        pass
+        if not self._llm:
+            self._llm = ChatOpenAI(
+                model=self._model_name, temperature=self._temperature
+            )
 
     def _get_vector_db(self, collection_name):
         embeddings = get_embedding_function(self._embeddings_args)
@@ -182,7 +177,7 @@ class MultiRetriever(ChainRunner):
         logger.debug("Selected collection", collection_name=collection_name)
         if collection_name not in self._retrievers:
             vector_db = self._get_vector_db(collection_name)
-            retriever = DocumentRetriever(self.llm, vector_db, verbose=self.verbose)
+            retriever = DocumentRetriever(self._llm, vector_db, verbose=self.verbose)
             self._retrievers[collection_name] = retriever
         return self._retrievers[collection_name]
 

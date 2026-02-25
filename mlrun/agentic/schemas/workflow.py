@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from mlrun.agentic.schemas.base import BaseWithVerMetadata
 from mlrun.agentic.schemas.session import Conversation
@@ -39,33 +39,28 @@ class Workflow(BaseWithVerMetadata):
 
 
 class WorkflowEvent:
-    """A workflow event."""
+    """A workflow event that flows through the agentic chain graph."""
 
     def __init__(
         self,
-        query=None,
-        username=None,
-        session_name=None,
-        db_session=None,
-        workflow_id=None,
+        query: Optional[str] = None,
+        username: Optional[str] = None,
+        session_name: Optional[str] = None,
         **kwargs,
     ):
-        self.username = username
-        self.session_name = session_name
-        self.original_query = query
-        self.query = query
-        self.kwargs = kwargs
+        self.username: Optional[str] = username
+        self.session_name: Optional[str] = session_name
+        self.original_query: Optional[str] = query
+        self.query: Optional[str] = query
+        self.kwargs: dict = kwargs
 
-        self.session = None
-        self.user = None
-        self.results = {}
-        self.state = {}
+        self.session: Any = None
+        self.results: dict = {}
+        self.state: dict = {}
+        self.memory_context: list[dict] = []
         self.conversation: Conversation = Conversation()
-        self.workflow_id = workflow_id
 
-        self.db_session = db_session
-
-    def to_dict(self):
+    def to_dict(self) -> dict:
         session_data = None
         if self.session:
             if hasattr(self.session, "to_dict"):
@@ -80,10 +75,20 @@ class WorkflowEvent:
             "kwargs": self.kwargs,
             "results": self.results,
             "state": self.state,
+            "memory_context": self.memory_context,
             "conversation": self.conversation.to_list(),
-            "workflow_id": self.workflow_id,
             "session": session_data,
         }
 
     def __getitem__(self, item):
         return getattr(self, item)
+
+    def __str__(self) -> str:
+        return self.results.get("answer", "")
+
+    def __repr__(self) -> str:
+        return (
+            f"WorkflowEvent(query={self.query!r}, username={self.username!r}, "
+            f"session_name={self.session_name!r}, "
+            f"results_keys={list(self.results.keys())})"
+        )

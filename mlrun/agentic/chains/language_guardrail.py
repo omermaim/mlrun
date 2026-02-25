@@ -20,7 +20,18 @@ from mlrun.agentic.chains.base import ChainRunner
 class LanguageGuardrail(ChainRunner):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.client = OpenAI()
+        self.client = None
+
+    def post_init(
+        self,
+        mode="sync",
+        context=None,
+        namespace=None,
+        creation_strategy=None,
+        **kwargs,
+    ):
+        if not self.client:
+            self.client = OpenAI()
 
     def _run(self, event):
         answer = event.results.get("answer", "")

@@ -19,3 +19,8 @@ try:
     from mlrun.agentic.sessions import SessionStore
 except ImportError:
     SessionStore = None
+
+try:
+    from mlrun.agentic.serving import graph_initializer
+except ImportError:
+    graph_initializer = None

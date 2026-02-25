@@ -45,14 +45,6 @@ class HallucinationGuardrail(ChainRunner):
         self._llm = None
         self._chain = None
 
-    @property
-    def llm(self):
-        if not self._llm:
-            self._llm = ChatOpenAI(
-                model=self._model_name, temperature=self._temperature
-            )
-        return self._llm
-
     def post_init(
         self,
         mode="sync",
@@ -61,8 +53,12 @@ class HallucinationGuardrail(ChainRunner):
         creation_strategy=None,
         **kwargs,
     ):
+        if not self._llm:
+            self._llm = ChatOpenAI(
+                model=self._model_name, temperature=self._temperature
+            )
         prompt = PromptTemplate.from_template(HALLUCINATION_GUARDRAIL_PROMPT)
-        self._chain = prompt | self.llm
+        self._chain = prompt | self._llm
 
     def _run(self, event: WorkflowEvent):
         source = event.query

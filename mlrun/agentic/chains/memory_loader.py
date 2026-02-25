@@ -59,7 +59,7 @@ class MemoryLoader(ChainRunner):
                     }
                 )
 
-        event.state["memory_context"] = facts
+        event.memory_context = facts
         logger.debug(
             "Loaded memory context",
             entity_key=entity_key,

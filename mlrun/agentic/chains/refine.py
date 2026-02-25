@@ -91,14 +91,6 @@ class RefineQuery(ChainRunner):
         self.prompt_template = prompt_template
         self._chain = None
 
-    @property
-    def llm(self):
-        if not self._llm:
-            self._llm = ChatOpenAI(
-                model=self._model_name, temperature=self._temperature
-            )
-        return self._llm
-
     def post_init(
         self,
         mode="sync",
@@ -107,14 +99,18 @@ class RefineQuery(ChainRunner):
         creation_strategy=None,
         **kwargs,
     ):
+        if not self._llm:
+            self._llm = ChatOpenAI(
+                model=self._model_name, temperature=self._temperature
+            )
         refine_prompt = PromptTemplate.from_template(
             self.prompt_template or CONVERSATION_CONTEXT_REFINER_PROMPT
         )
-        self._chain = refine_prompt | self.llm
+        self._chain = refine_prompt | self._llm
 
     def _run(self, event: WorkflowEvent):
         chat_history = str(event.conversation)
-        memory_facts = event.state.get("memory_context", [])
+        memory_facts = event.memory_context
         memory_text = ""
         if memory_facts:
             memory_text = "\n".join(f"- {f['key']}: {f['value']}" for f in memory_facts)
