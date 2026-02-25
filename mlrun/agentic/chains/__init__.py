@@ -21,7 +21,6 @@ from mlrun.agentic.chains.language_guardrail import LanguageGuardrail
 from mlrun.agentic.chains.refine import (
     CONVERSATION_CONTEXT_REFINER_PROMPT,
     RefineQuery,
-    get_refine_chain,
 )
 
 # TODO: resolve langchain version missmatch

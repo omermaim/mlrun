@@ -124,14 +124,3 @@ class RefineQuery(ChainRunner):
         )
         logger.debug("Refined question", refined=resp)
         return {"answer": resp}
-
-
-def get_refine_chain(
-    model_name="gpt-4", temperature=0, verbose=False, prompt_template=None
-):
-    return RefineQuery(
-        model_name=model_name,
-        temperature=temperature,
-        verbose=verbose,
-        prompt_template=prompt_template,
-    )
